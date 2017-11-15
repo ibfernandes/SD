@@ -12,6 +12,7 @@ import org.apache.thrift.transport.TTransportException;
 import graph.Edge;
 import graph.Settings;
 import graph.Vertex;
+import thrift.NodeData;
 
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.protocol.TBinaryProtocol;
@@ -25,12 +26,33 @@ public class Client implements Runnable {
 	private TTransport transport;
 	private TProtocol protocol;
 	public static final int SHOW_CONCURRENCY = 0;
-	public static final int USE_PRESET = 1;
-	public static final int USE_RANDOM = 2;
-	public static final int CURRENT_STATE = SHOW_CONCURRENCY;
+	public static final int USE_PRESET_1 = 1;
+	public static final int USE_PRESET_2 = 2;
+	public static final int USE_RANDOM = 3;
+	public static int CURRENT_STATE = SHOW_CONCURRENCY;
+	private String ip_server;
+	private int port_server;
+	private int id_server;
 	
   public void init() {
       transport = new TSocket(Settings.ip, Settings.port);
+      protocol = new  TBinaryProtocol(transport);
+      client = new thrift.service_graph.Client(protocol);
+  }
+  
+  public void init(String ip, int port) {
+	  ip_server = ip;
+	  port_server = port;
+	  transport = new TSocket(ip, port);
+      protocol = new  TBinaryProtocol(transport);
+      client = new thrift.service_graph.Client(protocol);
+  }
+  
+  public void init(String ip, int port, int id_server) {
+	  ip_server = ip;
+	  port_server = port;
+	  this.id_server = id_server;
+	  transport = new TSocket(ip, port);
       protocol = new  TBinaryProtocol(transport);
       client = new thrift.service_graph.Client(protocol);
   }
@@ -69,23 +91,28 @@ public class Client implements Runnable {
   
   public void printVertices(Map<Integer,thrift.Vertex> m) {
 		
+	  
 	  if(m!=null){
 			thrift.Vertex v;
 			for(int key : m.keySet()){
 				v = m.get(key);
 				printThriftVertex(v);
 			}
+	  }else {
+		  System.out.println("Nenhum vertice encontrado");
 	  }
 	}
 	
 	public void printEdges(Map<String, thrift.Edge> m) {
 		
-		if(m!=null){
+		if(!m.isEmpty()){
 			thrift.Edge e;
 			for(String key : m.keySet()){
 				e = m.get(key);
 				printThriftEdge(e);
 			}
+		}else {
+			System.out.println("Nenhuma aresta encontrada");
 		}
 	}
   
@@ -151,7 +178,7 @@ public class Client implements Runnable {
 	  }
   }
   
-  public void preSetOperation(){
+  public void preSet_1(){
 	  try{
 		  getService().addVertex(1, 1, "sou um vertice de 1 tentativa", 1.5);
 		  getService().addVertex(1, 2, "sou um vertice de 2 tentativa", 2.5);
@@ -164,6 +191,41 @@ public class Client implements Runnable {
 		  getService().deleteVertex(1);
 		  getService().deleteVertex(1);
 		  getService().deleteEdge(1, 2);
+		  
+		  
+		  System.out.println("Finished Executing preset 1...");
+	  }catch(Exception e){
+		  e.printStackTrace();
+	  }
+  }
+  
+  public void preSet_2() {
+	  try{
+		  getService().addVertex(0, 1, "nada", 1.5);
+		  getService().addVertex(1, 1, "nada", 1.5);
+		  getService().addVertex(2, 1, "nada", 1.5);
+		  getService().addVertex(3, 1, "nada", 1.5);
+		  getService().addVertex(4, 1, "nada", 1.5);
+		  getService().addVertex(5, 1, "nada", 1.5);
+		  getService().addVertex(6, 1, "nada", 1.5);
+		  
+		  getService().addEdge(0, 1, "nada", 1, 0);
+		  getService().addEdge(1, 2, "nada", 1, 0);
+		  getService().addEdge(2, 3, "nada", 1, 0);
+		  getService().addEdge(3, 5, "nada", 1, 0);
+		  getService().addEdge(5, 6, "nada", 1, 0);
+		  getService().addEdge(6, 0, "nada", 1, 0);
+		  
+		  getService().addEdge(0, 4, "nada", 1, 0);
+		  getService().addEdge(4, 2, "nada", 1, 0);
+		  getService().addEdge(4, 3, "nada", 1, 0);
+		  getService().addEdge(4, 5, "nada", 1, 0);
+		  
+		 
+		  printVertices(getService().getAllRingVertices());
+		 //printVertices(getService().getVertices());
+		  
+		  System.out.println("Finished Executing preset 2...");
 	  }catch(Exception e){
 		  e.printStackTrace();
 	  }
@@ -188,10 +250,15 @@ public class Client implements Runnable {
 						randomizeOperation(new Random().nextInt(2));
 						randomizeOperation(new Random().nextInt(10));
 					}
-					if(CURRENT_STATE==USE_PRESET){
-						preSetOperation();
+					if(CURRENT_STATE==USE_PRESET_1){
+						preSet_1();
+					
+					}
+					if(CURRENT_STATE==USE_PRESET_2){
+						preSet_2();
 						try {
-							wait();
+							//Thread.sleep(new Random().nextInt(1000));
+							Thread.sleep(2000000);
 						} catch (InterruptedException e) {
 							e.printStackTrace();
 						}

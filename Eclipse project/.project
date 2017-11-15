@@ -21,6 +21,11 @@
 			<locationURI>PARENT-1-PROJECT_LOC/gen-java/thrift/edge.java</locationURI>
 		</link>
 		<link>
+			<name>src/thrift/NodeData.java</name>
+			<type>1</type>
+			<locationURI>PARENT-1-PROJECT_LOC/gen-java/thrift/NodeData.java</locationURI>
+		</link>
+		<link>
 			<name>src/thrift/Vertex.java</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/gen-java/thrift/vertex.java</locationURI>

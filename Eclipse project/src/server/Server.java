@@ -6,7 +6,7 @@ import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TServerTransport;
 import org.apache.thrift.transport.TTransportFactory;
 
-import graph.Graph;
+import graph.Service;
 import graph.Settings;
 
 import org.apache.thrift.server.TServer.Args;
@@ -17,10 +17,11 @@ import org.apache.thrift.server.TThreadPoolServer;
 import java.util.HashMap;
 
 public class Server implements Runnable{
-	Graph handler;
+	public Service handler;
 	TServerTransport serverTransport ;
 	TServer server ;
 	TThreadPoolServer.Args serverArgs;
+	
 	/*	Thrift Network Stack
 	 	+-------------------------------------------+
 		| cGRE                                      |
@@ -43,7 +44,7 @@ public class Server implements Runnable{
 	*/
   public void init() {
     try {
-    	handler = new Graph();
+    	handler = new Service();
     	thrift.service_graph.Processor processor = new thrift.service_graph.Processor(handler);
     	
     	serverTransport = new TServerSocket(Settings.port);
@@ -52,7 +53,7 @@ public class Server implements Runnable{
 	    serverArgs.processor(processor);
 	    serverArgs.transportFactory(new TTransportFactory());
 	    serverArgs.protocolFactory(new TBinaryProtocol.Factory(true,true));
-	    serverArgs.maxWorkerThreads(8); // Recommended to be equal machine's cores
+	    serverArgs.maxWorkerThreads(50); // Recommended to be equal machine's cores
 	    serverArgs.minWorkerThreads(4);
 	    
 	    server = new TThreadPoolServer(serverArgs);
@@ -62,9 +63,33 @@ public class Server implements Runnable{
     	x.printStackTrace();
     }
   }
+  
+  public void init(int port) {
+	  try {
+	    	handler = new Service();
+	    	thrift.service_graph.Processor processor = new thrift.service_graph.Processor(handler);
+	    	
+	    	serverTransport = new TServerSocket(port);
+	    	
+			serverArgs=new TThreadPoolServer.Args(serverTransport);
+		    serverArgs.processor(processor);
+		    serverArgs.transportFactory(new TTransportFactory());
+		    serverArgs.protocolFactory(new TBinaryProtocol.Factory(true,true));
+		    serverArgs.maxWorkerThreads(8); // Recommended to be equal machine's cores
+		    serverArgs.minWorkerThreads(4);
+		    
+		    server = new TThreadPoolServer(serverArgs);
+
+	    	System.out.println("Starting server...");
+	    } catch (Exception x) {
+	    	x.printStackTrace();
+	    }
+  }
 
 @Override
 	public void run() {
+
 		server.serve();
+	
 	}
 }
