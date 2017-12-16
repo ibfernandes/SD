@@ -11,6 +11,7 @@ public class Settings {
 	public static String ip = "localhost";
 	public static int m_bit_size = 3;
 	public static int password = 12345;
+	public static int n_server = 5;
 	
 	public Settings(String path){
 		File conf = new File(path);
@@ -33,6 +34,10 @@ public class Settings {
 			buffer = br.readLine();
 			value = buffer.split("=");
 			m_bit_size = Integer.parseInt(value[1]);
+			
+			buffer = br.readLine();
+			value = buffer.split("=");
+			n_server = Integer.parseInt(value[1]);
 			
 		} catch (Exception e) {
 			e.printStackTrace();

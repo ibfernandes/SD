@@ -223,6 +223,7 @@ public class Client implements Runnable {
 		  
 		 
 		  printVertices(getService().getAllRingVertices());
+		  getService().shortestPathBetweenVertices(1, 3);
 		 //printVertices(getService().getVertices());
 		  
 		  System.out.println("Finished Executing preset 2...");

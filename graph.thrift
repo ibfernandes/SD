@@ -36,7 +36,7 @@ service service_graph{
 	map<i32,Vertex> getAdjacentVertices(1:i32 name),
 	map<i32,Vertex> getAllRingVertices(),
 	map<string,Edge> getAllRingEdges(),
-	map<i32,Edge> shortestPathBetweenVertices(1:Vertex a, 2:Vertex b),
+	map<string,Edge> shortestPathBetweenVertices(1:i32 a, 2:i32 b),
 	
 	void init_node(1:i32 m, 2:NodeData node),
 	NodeData find_sucessor(1:NodeData node),

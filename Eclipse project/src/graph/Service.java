@@ -1,10 +1,15 @@
 package graph;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.EmptyStackException;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
+import java.util.Queue;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentHashMap.KeySetView;
@@ -723,11 +728,107 @@ public class Service implements Iface{
 	}
 
 	@Override
-	public Map<Integer, thrift.Edge> shortestPathBetweenVertices(thrift.Vertex a, thrift.Vertex b)
-			throws TException {
-		// TODO Auto-generated method stub
-		return null;
+	public Map<String, thrift.Edge> shortestPathBetweenVertices(int n1, int n2) throws TException {
+		String op = "shortestPathBetweenVertices ("+n1+" , "+n2+" )";
+		debug(op, BEGIN);
+		
+		Map<String, thrift.Edge> edges_map  = new HashMap<>();
+		edges_map = getAllRingEdges();
+		
+		Map<Integer, thrift.Vertex> vertices_map  = new HashMap<>();
+		vertices_map = getAllRingVertices();
+		
+		thrift.Vertex vertices[] = vertices_map.values().toArray( new thrift.Vertex[0]);
+		
+		 boolean complete = false;
+		 int size = 0;
+		 ArrayList<thrift.Vertex> paths = new ArrayList<thrift.Vertex>();
+		 ArrayList<thrift.Vertex> visited = new ArrayList<thrift.Vertex>();
+		 Queue<thrift.Vertex> pathTable;
+		 
+		 thrift.Vertex a = getVertex(n1);
+		 thrift.Vertex b = getVertex(n2);
+		 
+		 //adding nodes to the unvisited array
+		 for(thrift.Vertex path: vertices){
+		   paths.add(path);
+		  }
+		 
+
+		  pathTable = new PriorityQueue<thrift.Vertex>(vertices.length, comp);
+		  
+		  //calling with Dijkstra with the source
+		  paths.remove(a);
+		  visited.add(a);
+		  
+		  thrift.Vertex n = a;
+		  //Check the adjacent nodes and move forward
+		  int count = 0;
+		  while(count != vertices.length){
+		   //find the adjacent nodes
+			  Map<Integer, Vertex> adjancents = getAdjacentVertices(n.getName());
+		   for(Object key: adjancents.keySet()){
+		    thrift.Vertex currentNode = (thrift.Vertex) key;
+		   
+		    //if visited don't go through it
+		    if(visited.contains(currentNode)){
+		     continue;
+		    }
+		    
+		    double newPathCost = n.getWeight() +   adjancents.get(currentNode.getName()).getWeight(); 
+		    if (currentNode.getName() == 0.0){
+		     currentNode.weight = newPathCost; 
+		    } else if (currentNode.weight < newPathCost){
+		     
+		    } else {
+		     //System.out.println("Ekhane " + currentNode.name);
+		     currentNode.weight = newPathCost;
+		    }
+		   
+		    if (pathTable.contains(currentNode)){
+		     pathTable.remove(currentNode);
+		     pathTable.add(currentNode);
+		    } else {
+		     pathTable.add(currentNode);
+		    }
+		   
+		   }
+		   //give n a new value go through it <the lowest path cost data
+		   thrift.Vertex temp =(thrift.Vertex)pathTable.poll();
+		   n = temp;
+		   visited.add(temp);
+		   count++;
+		   
+		  }
+		  
+		  //printing the final output
+		  System.out.println("Shortest path distance from source: " + a.getName());
+		  for(Object iter: paths.toArray()){
+		   thrift.Vertex temp = (thrift.Vertex) iter;
+		   String cost = Double.toString(temp.getWeight());
+		     
+		   if(!visited.contains(temp)){
+		    cost = "Infinity";
+		   }
+		   System.out.println(temp.name + " " + cost);
+		  }
+		 
+		debug(op, END);
+		return edges_map;
+	
 	}
+	
+	 public static Comparator<thrift.Vertex> comp = new Comparator<thrift.Vertex>() {
+		  public int compare (thrift.Vertex one, thrift.Vertex two){
+		   if(one.getWeight() > two.getWeight()){
+		    return 1;
+		   } else {
+		    return -1;
+		   }
+		   
+		  }
+	 };
+
 
 
 	
@@ -787,37 +888,6 @@ public class Service implements Iface{
 	public void initPredecessor(NodeData predecessor) {
 		this.predecessor = predecessor;
 	}
-	
-	//n.find_sucessor(id)
-	/*public NodeData find_sucessor(NodeData node) {
-		String op;
-		op = "find_sucessor ( "+node.id+" )";
-		debug(op, BEGIN);
-		
-		if(node.id==nodeData.id) { //Se sucessor dele mesmo, retorna ele mesmo e exibir msg de erro
-			debug(op, END);
-			return nodeData;
-		}
-		
-		NodeData n_linha = find_predecessor(node);//n' = find_predecessor(id)
-		NodeData sucessor = null;
-		
-		c = new Client();
-		c.init(n_linha.ip, n_linha.port); 
-		try {
-			
-			c.open();
-			sucessor = c.getService().getSucessor(n_linha); //return n'.sucessor
-			c.close();
-			
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		
-
-		debug(op, END);
-		return sucessor;
-	}*/
 	
 	//n.find_sucessor(id) v wikipedia
 	public NodeData find_sucessor(NodeData node) {
@@ -1019,7 +1089,7 @@ public class Service implements Iface{
 		
 		//if(x e (n,sucessor))
 		if(x!=null) {
-			if(x.id>nodeData.id && x.id<finger[0].id)
+			if(checkCiclicOpenOpenInterval(x.id, nodeData.id, finger[0].id))
 				finger[0] = x;
 		}
 		
@@ -1048,7 +1118,7 @@ public class Service implements Iface{
 		debug(op, BEGIN);
 		
 		//if(predecessor is nill or n' e (predecessor,n))
-		if(predecessor==null || (node.id>predecessor.id && node.id<nodeData.id))
+		if(predecessor==null || checkCiclicOpenOpenInterval(node.id, predecessor.id, nodeData.id))
 			predecessor = node; //predecessor = n'
 		
 		debug(op, END);
