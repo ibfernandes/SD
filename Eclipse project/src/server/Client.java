@@ -210,7 +210,7 @@ public class Client implements Runnable {
 		  getService().addVertex(6, 1, "nada", 1.5);
 		  
 		  getService().addEdge(0, 1, "nada", 1, 0);
-		  getService().addEdge(1, 2, "nada", 1, 0);
+		  /*getService().addEdge(1, 2, "nada", 1, 0);
 		  getService().addEdge(2, 3, "nada", 1, 0);
 		  getService().addEdge(3, 5, "nada", 1, 0);
 		  getService().addEdge(5, 6, "nada", 1, 0);
@@ -219,11 +219,12 @@ public class Client implements Runnable {
 		  getService().addEdge(0, 4, "nada", 1, 0);
 		  getService().addEdge(4, 2, "nada", 1, 0);
 		  getService().addEdge(4, 3, "nada", 1, 0);
-		  getService().addEdge(4, 5, "nada", 1, 0);
+		  getService().addEdge(4, 5, "nada", 1, 0);*/
 		  
 		 
-		  printVertices(getService().getAllRingVertices());
-		  getService().shortestPathBetweenVertices(1, 3);
+		 // printVertices(getService().getAllRingVertices());
+		  printEdges(getService().getAllRingEdges());
+		 // getService().shortestPathBetweenVertices(1, 3);
 		 //printVertices(getService().getVertices());
 		  
 		  System.out.println("Finished Executing preset 2...");

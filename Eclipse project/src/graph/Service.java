@@ -2,21 +2,33 @@ package graph;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.EmptyStackException;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentHashMap.KeySetView;
 
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransportException;
-
+import copycat_command.AddEdgeCommand;
+import io.atomix.catalyst.transport.Address;
+import io.atomix.catalyst.transport.netty.NettyTransport;
+import io.atomix.copycat.client.CopycatClient;
+import io.atomix.copycat.server.Commit;
+import io.atomix.copycat.server.CopycatServer;
+import io.atomix.copycat.server.StateMachine;
+import io.atomix.copycat.server.storage.Storage;
+import io.atomix.copycat.server.storage.StorageLevel;
 import sun.misc.Lock;
 import server.Client;
 
@@ -26,7 +38,7 @@ import thrift.Vertex;
 import thrift.service_graph.Iface;
 
 
-public class Service implements Iface{
+public class Service extends StateMachine implements Iface{
 	/*
 	/*
 	 *  Cases which you should take care of:
@@ -48,6 +60,8 @@ public class Service implements Iface{
 	private boolean debug = true;
 	public static final int BEGIN = 0;
 	public static final int END = 1;
+	
+
 	
 	public synchronized boolean acquireResource(String key){
 		if(permits.putIfAbsent(key,1)!=null){
@@ -77,13 +91,13 @@ public class Service implements Iface{
 	}
 	
 	
-	public void addVertex(Vertex v){
+	public void addVertex(Vertex v) {
 		String op = "addVertex ( id "+v.getName()+" )";
 		debug(op, BEGIN);
 		
 		int key = hashKey(v.getName());
 		if(shouldQueryForward(key)) {
-			NodeData node = new NodeData(key,nodeData.ip,nodeData.port);
+			NodeData node = new NodeData(key,nodeData.ip,nodeData.port, nodeData.clusterId);
 			node = find_sucessor(node);
 				
 			if(node.id!=nodeData.id) {
@@ -119,42 +133,6 @@ public class Service implements Iface{
 		int origin  = e.getVertexOrigin();
 		int destiny = e.getVertexDestiny();
 		String key 	= origin+"-"+destiny;
-		String op = "addEdge ( id "+key+" )";
-		debug(op, BEGIN);
-		
-		if(origin==destiny){
-			System.out.printf("\n[Token "+Thread.currentThread().getId()+"]\tLoops are not allowed! Aborting...( id %s )\n", key);
-			return;
-		}
-		
-		int key_v1 = hashKey(origin);
-		int key_v2 = hashKey(destiny);
-		
-
-		
-		if(shouldQueryForward(key_v1)) {
-			NodeData node = new NodeData(key_v1,nodeData.ip,nodeData.port);
-			node = find_sucessor(node);
-			
-			if(node.id!=nodeData.id) {
-				Client c = new Client();
-				c.init(node.ip, node.port);
-				
-				try {
-					c.open();
-					c.getService().addEdge(e.getVertexOrigin(), e.getVertexDestiny(), e.getDescription(), e.getWeight(), e.getIsDirected());
-					c.close();
-				} catch (TException err) {
-					// TODO Auto-generated catch block
-					err.printStackTrace();
-				}
-		
-				return;
-			}
-		}
-
-
-		
 		
 		while(!acquireResource(key)){
 			// If it fails to acquire resource -> keeps waiting
@@ -173,7 +151,7 @@ public class Service implements Iface{
 		}
 		
 		System.out.println("\nEdge de key "+e.getVertexOrigin()+"-"+e.getVertexDestiny()+" hasheado para os nodos "+hashKey(e.getVertexOrigin())+" e "+hashKey(e.getVertexDestiny())+" inserido no nodo "+nodeData.id);
-		debug(op, END);
+		
 		releaseResource(key);
 	}
 	
@@ -183,7 +161,7 @@ public class Service implements Iface{
 		
 		int hashkey = hashKey(v.getName());
 		if(shouldQueryForward(hashkey)) {
-			NodeData node = new NodeData(hashkey,nodeData.ip,nodeData.port);
+			NodeData node = new NodeData(hashkey,nodeData.ip,nodeData.port, nodeData.clusterId);
 			node = find_sucessor(node);
 				
 			if(node.id!=nodeData.id) {
@@ -249,7 +227,7 @@ public class Service implements Iface{
 		
 		int hashkey = hashKey(origin);
 		if(shouldQueryForward(hashkey)) {
-			NodeData node = new NodeData(hashkey,nodeData.ip,nodeData.port);
+			NodeData node = new NodeData(hashkey,nodeData.ip,nodeData.port,nodeData.clusterId);
 			node = find_sucessor(node);
 				
 			if(node.id!=nodeData.id) {
@@ -289,7 +267,7 @@ public class Service implements Iface{
 		
 		int key = hashKey(v.getName());
 		if(shouldQueryForward(key)) {
-			NodeData node = new NodeData(key,nodeData.ip,nodeData.port);
+			NodeData node = new NodeData(key,nodeData.ip,nodeData.port,nodeData.clusterId);
 			node = find_sucessor(node);
 				
 			if(node.id!=nodeData.id) {
@@ -342,7 +320,7 @@ public class Service implements Iface{
 
 		int hashkey = hashKey(origin);
 		if(shouldQueryForward(hashkey)) {
-			NodeData node = new NodeData(hashkey,nodeData.ip,nodeData.port);
+			NodeData node = new NodeData(hashkey,nodeData.ip,nodeData.port,nodeData.clusterId);
 			node = find_sucessor(node);
 				
 			if(node.id!=nodeData.id) {
@@ -437,7 +415,66 @@ public class Service implements Iface{
 	@Override
 	public void addEdge(int vertexOrigin, int vertexDestiny, String description, double weight, int isDirected)
 			throws TException {
-		addEdge(new Edge(vertexOrigin, vertexDestiny, weight, isDirected, description));
+		Edge e = new Edge(vertexOrigin, vertexDestiny, weight, isDirected, description);
+		int origin  = e.getVertexOrigin();
+		int destiny = e.getVertexDestiny();
+		String key 	= origin+"-"+destiny;
+		String op = "addEdge ( id "+key+" )";
+		debug(op, BEGIN);
+		
+		if(origin==destiny){
+			System.out.printf("\n[Token "+Thread.currentThread().getId()+"]\tLoops are not allowed! Aborting...( id %s )\n", key);
+			return;
+		}
+		
+		
+		int key_v1 = hashKey(origin);
+		int key_v2 = hashKey(destiny);
+
+		
+		if(shouldQueryForward(key_v1)) {
+			NodeData node = new NodeData(key_v1,nodeData.ip,nodeData.port, nodeData.clusterId);
+			node = find_sucessor(node);
+			
+			if(node.id!=nodeData.id) {
+				Client c = new Client();
+				c.init(node.ip, node.port);
+				
+				try {
+					c.open();
+					c.getService().addEdge(e.getVertexOrigin(), e.getVertexDestiny(), e.getDescription(), e.getWeight(), e.getIsDirected());
+					c.close();
+				} catch (TException err) {
+					// TODO Auto-generated catch block
+					err.printStackTrace();
+				}
+		
+				return;
+			}
+		}
+		
+		
+		//Adiona a este nodo
+		addEdge(e);
+		
+		//Propaga para os outros nodos do cluster
+		CopycatClient client = buildClient();
+		
+		Collection<Address> cluster = Arrays.asList(
+				  new Address(nodeData.ip, nodeData.port+clusterOffset)
+				);
+		
+		CompletableFuture<CopycatClient> future = client.connect(cluster);
+		future.join();
+		
+		 CompletableFuture[] futures = new CompletableFuture[1];
+		 futures[0] = client.submit(new AddEdgeCommand(convertEdgeToThrift(e)));
+		 CompletableFuture.allOf(futures).thenRun(() -> System.out.println("Commands completed!"));
+
+		
+		
+		debug(op, END);
+		
 	}
 
 	@Override
@@ -469,7 +506,7 @@ public class Service implements Iface{
 		
 		int key = hashKey(name);
 		if(shouldQueryForward(key)) {
-			NodeData node = new NodeData(key,nodeData.ip,nodeData.port);
+			NodeData node = new NodeData(key,nodeData.ip,nodeData.port,nodeData.clusterId);
 			node = find_sucessor(node);
 			thrift.Vertex result = null;
 				
@@ -508,7 +545,7 @@ public class Service implements Iface{
 		
 		int key = hashKey(Integer.parseInt(name.split("-")[0]));
 		if(shouldQueryForward(key)) {
-			NodeData node = new NodeData(key,nodeData.ip,nodeData.port);
+			NodeData node = new NodeData(key,nodeData.ip,nodeData.port,nodeData.clusterId);
 			node = find_sucessor(node);
 			thrift.Edge result = null;
 				
@@ -572,7 +609,7 @@ public class Service implements Iface{
 		
 		int hashkey = hashKey(name);
 		if(shouldQueryForward(hashkey)) {
-			NodeData node = new NodeData(hashkey,nodeData.ip,nodeData.port);
+			NodeData node = new NodeData(hashkey,nodeData.ip,nodeData.port,nodeData.clusterId);
 			node = find_sucessor(node);
 				
 			if(node.id!=nodeData.id) {
@@ -613,7 +650,7 @@ public class Service implements Iface{
 		
 		int hashkey = hashKey(name);
 		if(shouldQueryForward(hashkey)) {
-			NodeData node = new NodeData(hashkey,nodeData.ip,nodeData.port);
+			NodeData node = new NodeData(hashkey,nodeData.ip,nodeData.port,nodeData.clusterId);
 			node = find_sucessor(node);
 				
 			if(node.id!=nodeData.id) {
@@ -837,6 +874,7 @@ public class Service implements Iface{
 	//+=================================================================================================================================
 	private NodeData finger[];
 	
+	
 	private Server s;
 	private Client c;
 	
@@ -849,7 +887,7 @@ public class Service implements Iface{
 	@Override
 	public void init_node(int m, NodeData n) throws TException {
 		String op = "init_node ( "+m+", "+n.id+" )";
-		debug(op, BEGIN);
+		//debug(op, BEGIN);
 		
 		this.nodeData = n;
 		this.m = m;
@@ -875,7 +913,7 @@ public class Service implements Iface{
 
 		
 		
-		debug(op, END);
+		//debug(op, END);
 	}
 
 	
@@ -1157,6 +1195,128 @@ public class Service implements Iface{
 		for(int i= 0; i < finger.length; i ++)
 			if(finger[i]!=null)
 				System.out.println(finger[i].id);
+	}
+	
+	
+	//+=================================================================================================================================
+	//|	Raft functions
+	//+=================================================================================================================================
+	
+	public CopycatServer raft_server;
+	public CopycatClient raft_client;
+	private HashMap<Integer, NodeData[]> fingerCluster;
+	private ArrayList<NodeData> ownCluster;
+	public int fatorReplicacao = 3;
+	public int clusterOffset;
+	
+	public void init_raft(int fatorReplicao, int clusterOffset) {
+		this.clusterOffset = clusterOffset;
+		String op = "init_raft (" + nodeData.ip+", " + nodeData.port +")";
+		debug(op, BEGIN);
+		
+		fingerCluster = new HashMap<Integer, NodeData[]>();
+		
+		this.fatorReplicacao = fatorReplicao;
+		Address server_address = new Address(nodeData.ip, nodeData.port+clusterOffset);
+
+        CopycatServer.Builder builder = CopycatServer.builder(server_address)
+                                                     .withStateMachine(Service::new)
+                                                     .withTransport( NettyTransport.builder()
+                                                                     .withThreads(4)
+                                                                     .build())
+                                                     .withStorage( Storage.builder()
+                                                                   .withDirectory(new java.io.File("logs_"+nodeData.id)) //Must be unique
+                                                                   .withStorageLevel(StorageLevel.DISK)
+                                                                   .build())
+                                                     .withName(nodeData.ip+nodeData.port)
+                                                     ;
+
+        raft_server = builder.build();
+        
+        debug(op, END);
+	}
+	
+	public void initFingerCluster(HashMap<Integer, NodeData[]> map) {
+		this.fingerCluster = map;
+	}
+	
+	public void startCluster() {
+		String op = "startCluster (" + nodeData.ip+", " + nodeData.port +")";
+		debug(op, BEGIN);
+		
+		 Thread thread = new Thread(){
+		    public void run(){
+		    	CompletableFuture<CopycatServer> future = raft_server.bootstrap();
+		    	future.join();
+		    }
+		  };
+		  thread.start();
+		  
+		  debug(op, END);
+	}
+	
+	public void startCluster(Collection<Address> cluster) {
+		String op = "startCluster (" + nodeData.ip+", " + nodeData.port +")";
+		debug(op, BEGIN);
+		
+		for(Address a: cluster)
+			System.out.println(a.port());
+		
+		 Thread thread = new Thread(){
+		    public void run(){
+		    	CompletableFuture<CopycatServer> future = raft_server.bootstrap(cluster);
+		    	future.join();
+		    	
+		    }
+		  };
+		  thread.start();
+		  
+		  debug(op, END);
+	}
+	
+	public void joinCluster(Collection<Address> clusters) {
+			String op = "joinCluster (" +")";
+			debug(op, BEGIN);
+			
+			Thread thread = new Thread(){
+			    public void run(){
+			    	raft_server.join(clusters).join();
+			    }
+			  };
+			  thread.start();
+			
+			debug(op, END);
+	}
+	
+	public Boolean AddEdgeCommand(Commit<AddEdgeCommand> commit){
+		if(nodeData!=null) {
+			String op = "AddEdge ( commit"+nodeData.port+")";
+			debug(op, BEGIN);
+		
+			if(commit!=null && (commit.operation().getE()!=null)){
+			    try {
+			      addEdge(convertThriftToEdge(commit.operation().getE()));
+			    } finally {
+			      commit.close();
+			    }
+		    }else {
+		    	System.out.println("Commit ou vertice null");
+		    }
+		    
+		    debug(op, END);
+		}
+		return true;
+    }
+	
+	public CopycatClient buildClient() {
+		CopycatClient.Builder builder = CopycatClient.builder();
+		builder.withTransport(NettyTransport.builder()
+				  .withThreads(2)
+				  .build());
+		CopycatClient client = builder.build();
+		client.serializer().register(AddEdgeCommand.class);
+		return client;
+		
 	}
 
 

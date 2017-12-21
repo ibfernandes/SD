@@ -1,17 +1,32 @@
 package server;
 
+import java.io.File;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransport;
 
+import copycat_command.AddEdgeCommand;
 import graph.Periodic;
+import graph.Service;
 import graph.Settings;
 import graph.Vertex;
+import io.atomix.catalyst.transport.Address;
+import io.atomix.catalyst.transport.netty.NettyTransport;
+import io.atomix.copycat.client.CopycatClient;
+import io.atomix.copycat.server.CopycatServer;
+import io.atomix.copycat.server.storage.Storage;
+import io.atomix.copycat.server.storage.StorageLevel;
 import thrift.NodeData;
 
 import org.apache.thrift.transport.TSocket;
@@ -39,19 +54,26 @@ public class Main {
 					nodes[3] = new NodeData(3,"localhost", 3033);
 					nodes[4] = new NodeData(4,"localhost", 3034);*/
 		
-		int quantidadeServidores = 3;
+		int fatorReplicacao = 3;
+		int clusterOffset = 100;
+		
+		int quantidadeServidores = 2 * fatorReplicacao;
+		int quantidadeDeClusters = quantidadeServidores / fatorReplicacao;
 		int m = 4;
 		int maxInt = (int) Math.pow(2,m)-1;
-		int portaBase = 3030;
-		
+		int portaBase = 8000;
+
 		NodeData	nodes[] = new NodeData[quantidadeServidores];
+		NodeData	nodesPorCluster[][] = new NodeData[quantidadeDeClusters][fatorReplicacao];
 		Random r = new Random();
 		ArrayList<Integer> ids = new ArrayList<Integer>();   
 		
 		Server servers[] = new Server[quantidadeServidores];
 		Thread thread_servers[] = new Thread[quantidadeServidores];
 		
-		//Gera as portas e id's aleatorios (sem repetição) dos servidores
+		/** 
+		 * Gera as portas e id's aleatorios (sem repetição) dos servidores
+		 */
 		/*while (ids.size() < quantidadeServidores) {
 
 		    int random = r .nextInt(maxInt+1);
@@ -59,18 +81,30 @@ public class Main {
 		        ids.add(random);
 		    }
 		}*/
-		ids.add(5);
+		while (ids.size() < quantidadeDeClusters) {
+
+		    int random = r .nextInt(maxInt+1);
+		    if (!ids.contains(random)) {
+		        ids.add(random);
+		    }
+		}
+		
+		//PRESET DE TESTES
+		/*ids.add(5);
 		ids.add(7);
 		ids.add(11);
-		
-		
+		ids.add(14);
+		ids.add(17);
+		ids.add(19);*/
 		
 		Collections.sort(ids);
-	
-		for(int i=0;i<quantidadeServidores;i++) {
-			nodes[i] = new NodeData(ids.get(i),"localhost",portaBase+i);
+		for(int i=0; i < quantidadeDeClusters; i++) {
+			for(int p=i*fatorReplicacao;p<(i*fatorReplicacao)+fatorReplicacao;p++) { 
+				nodes[p] = new NodeData(ids.get(i),"localhost",portaBase+p,i);
+				nodesPorCluster[i][p%fatorReplicacao] = nodes[p];
+			}
 		}
-
+		
 		
 		//Inicializa os servidores e suas devidas fingerTable
 		for(int s=0; s<quantidadeServidores; s++) {	
@@ -148,14 +182,6 @@ public class Main {
 					}
 						
 				}
-					
-				
-				
-				
-				/*for(int p=1;p<potenciaisSucessores.size();p++) {
-					if(potenciaisSucessores.get(p).id<menor.id)
-						menor = potenciaisSucessores.get(p);
-				}*/
 				
 				fingerTable[fingerIndex] = sucessor;
 			}
@@ -165,6 +191,19 @@ public class Main {
 			for(int l=0;l<m;l++)
 				fingerTableList.add(fingerTable[l]);
 			
+			HashMap<Integer, NodeData[]> fingerCluster;
+			fingerCluster = new HashMap<Integer,NodeData[]>();
+			
+			for(int l=0;l<m;l++) {
+				int clusterWhichBelongs = fingerTable[l].clusterId;
+				NodeData nodesOfThatCluster[] = new NodeData[fatorReplicacao];
+				
+				for(int lk =0; lk<fatorReplicacao; lk++) {
+					nodesOfThatCluster[lk] = nodesPorCluster[clusterWhichBelongs][lk];
+				}
+				
+				fingerCluster.put(l, nodesOfThatCluster);
+			}
 			
 			
 			
@@ -173,25 +212,48 @@ public class Main {
 				servers[s].init(nodes[s].port);
 				servers[s].handler.init_node(m, nodes[s]);
 				servers[s].handler.initFingerTable(fingerTableList);
+				servers[s].handler.initFingerCluster(fingerCluster);
 				
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
 			
-			System.out.println("+-----------------------+");
-			System.out.println("| ["+s+"]Nodo "+nodes[s].id+"\t\t|\n");
+			//Finger table para um único nodo
+			/*System.out.println("+-----------------------+");
+			System.out.println("| ["+s+"]Nodo ID "+nodes[s].id+"\t\t|\n");
 				for(int h =0;h<m;h++) {
 					int esquerda 	= (int) ((nodes[s].id + Math.pow(2, h))%Math.pow(2, m));
 					int direita 	= (int) ((nodes[s].id + Math.pow(2, h+1))%Math.pow(2, m));
 					
-					System.out.println("| "+h+" ["+esquerda+","+direita+")  ->  "+fingerTable[h].id+"\t|");
+					System.out.println("| "+h+" ["+esquerda+","+direita+")  \t->  "+fingerTable[h].id+"\t|");
 				}
-				System.out.println("+-----------------------+");
+			System.out.println("+-----------------------+");*/
 			
-		}
+			//Finger table com cluster
+			System.out.println("+-------------------------------------------------------------------------------+");
+			System.out.println("| ["+s+"]Nodo ID "+nodes[s].id+" - Cluster "+nodes[s].clusterId+" - "+nodes[s].ip+":"+nodes[s].port+"\t\t\t\t\t|\n");
+				for(int h =0;h<m;h++) {
+					int esquerda 	= (int) ((nodes[s].id + Math.pow(2, h))%Math.pow(2, m));
+					int direita 	= (int) ((nodes[s].id + Math.pow(2, h+1))%Math.pow(2, m));
+					
+					NodeData nodesOfThatCluster[] = fingerCluster.get(h);
+					
+					System.out.printf("| "+h+" ["+esquerda+","+direita+")  \t-> Node [ID "+fingerTable[h].id+"] - Cluster ["+nodesOfThatCluster[0].clusterId+"] - Portas [");
+					
+					for(int jj = 0; jj< fatorReplicacao; jj++)
+						System.out.printf(nodesOfThatCluster[jj].port+", ");
+					
+					
+					System.out.printf("]\t|\n");
+				}
+				System.out.println("+-------------------------------------------------------------------------------+");
+			
+			}
 		
-		//Inicializa os predecessores de cada servidor
+		
+		//Inicializa os predecessores 
 		for(int s=0;s<quantidadeServidores;s++) {
+			
 			NodeData predecessor;
 			if(s==0)
 				predecessor = nodes[quantidadeServidores-1];
@@ -199,119 +261,79 @@ public class Main {
 				predecessor = nodes[s-1];
 			
 			servers[s].handler.initPredecessor(predecessor);
+
 			thread_servers[s] = new Thread(servers[s]);
 			thread_servers[s].start();
 		}
 		
-
+		//Inicia Raft server configurations
+		for(int s=0;s<quantidadeServidores;s++) 
+			servers[s].handler.init_raft(fatorReplicacao, clusterOffset);
 		
+		
+		//Inicializa os clusters de cada nodo principal
+		for(int s=0;s<quantidadeDeClusters;s++) {
+			ArrayList<Address> cluster = new ArrayList<Address>();
+			
+			//Armazena na var cluster todos os endereços que pertencem a este cluster
+			System.out.println("Configurando o cluster "+s);
+			for(int k=s*fatorReplicacao;k<(s*fatorReplicacao)+fatorReplicacao;k++) {
+				System.out.println("Adicionando ("+nodes[k].ip+", "+nodes[k].port+") ao cluster.");
+				cluster.add(new Address(nodes[k].ip, nodes[k].port+clusterOffset));
+			}
+			
+			for(int k=s*fatorReplicacao;k<(s*fatorReplicacao)+fatorReplicacao;k++) {
+				int aux = k;
+				Thread thread = new Thread(){
+				    public void run(){
+				    if((aux%fatorReplicacao)==0)
+				    		servers[aux].handler.raft_server.bootstrap().join();
+				    	else {
+				    		servers[aux].handler.raft_server.join(cluster).join();
+				    	}
+				    }
+				  };
+				thread.start();
+			}
+		}
+		
+		
+		
+		
+		
+		
+		//Inicializa o cliente raft para testar os clusters
+		try {
+			Thread.sleep(10000);
+			System.out.println("Iniciando cliente...");
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		/*
+		CopycatClient.Builder builder = CopycatClient.builder();
+		builder.withTransport(NettyTransport.builder()
+				  .withThreads(2)
+				  .build());
+
+		CopycatClient client = builder.build();
+		Collection<Address> cluster = Arrays.asList(
+		  new Address(nodes[0].ip, nodes[0].port+clusterOffset)
+		);
+
+		CompletableFuture<CopycatClient> future = client.connect(cluster);
+		future.join();
+		CompletableFuture<Object> f = client.submit(new AddEdgeCommand(new thrift.Edge()));
+		Object result = f.join();*/
+		
+			
+		//Incializa o cliente thrift para testar os servidores
 		Client c = new Client();
 		c.init(nodes[0].ip, nodes[0].port, nodes[0].id);
 		c.CURRENT_STATE = c.USE_PRESET_2;
 		
 		Thread cc = new Thread(c);
 		cc.start();
-		
-		
-		/*
-		//---------------------------------------------
-		//	Nodo0
-		//---------------------------------------------
-		Server nodo0 = new Server();
-		nodo0.init(nodes[0].port);
-		c.init(nodes[0].ip, nodes[0].port);
-		
-		thread_server = new Thread(nodo0);
-		thread_server.start();
-		
-		try {
-			c.open();
-			c.getService().init_node(3, nodes[0]);
-			c.close();
-		} catch (TException e) {
-			e.printStackTrace();
-		}
-		
-		Periodic p0 = new Periodic(nodo0);
-		Thread t0 = new Thread(p0);
-		t0.start();
-		
-		//---------------------------------------------
-		//	Nodo1
-		//---------------------------------------------
-		Server nodo1 = new Server();
-		nodo1.init(nodes[1].port);
-		c.init(nodes[1].ip, nodes[1].port);
-		
-		thread_server = new Thread(nodo1);
-		thread_server.start();
-
-		try {
-			c.open();
-			c.getService().init_node(3, nodes[1]);
-			c.getService().join(nodes[0]);
-			c.getService().printFingerTable();
-			c.close();
-		} catch (TException e) {
-			e.printStackTrace();
-		}
-		System.out.println("aa");
-		Periodic p1 = new Periodic(nodo1);
-		Thread t1 = new Thread(p1);
-		t1.start();
-		
-		//---------------------------------------------
-		//	Nodo2
-		//---------------------------------------------
-		Server nodo2 = new Server();
-		nodo2.init(nodes[2].port);
-		c.init(nodes[2].ip, nodes[2].port);
-		
-		thread_server = new Thread(nodo2);
-		thread_server.start();
-
-		try {
-			c.open();
-			c.getService().init_node(3, nodes[2]);
-			c.getService().join(nodes[0]);
-			c.getService().printFingerTable();
-			c.close();
-		} catch (TException e) {
-			e.printStackTrace();
-		}
-		
-		Periodic p2 = new Periodic(nodo2);
-		Thread t2 = new Thread(p2);
-		t2.start();*/
-
-		
-		
-		
-		
-		
-		
-		/*Client c1 = new Client();
-		c1.id = 1;
-		c1.init();
-		
-		Client c2 = new Client();
-		c2.id = 2;
-		c2.init();
-		
-		Client c3 = new Client();
-		c3.id = 3;
-		c3.init();
-
-		
-		thread_client_1 = new Thread(c1);
-		thread_client_1.start();
-		
-		thread_client_2 = new Thread(c2);
-		thread_client_2.start();
-		
-		thread_client_3 = new Thread(c3);
-		thread_client_3.start();*/
-
 		
 	  }
 }

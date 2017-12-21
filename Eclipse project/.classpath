@@ -5,5 +5,16 @@
 	<classpathentry kind="lib" path="C:/Users/User/Dropbox/2017-2 UFU/SD/Eclipse project/jar/libthrift-0.9.3.jar"/>
 	<classpathentry kind="lib" path="C:/Users/User/Dropbox/2017-2 UFU/SD/Eclipse project/jar/slf4j-api-1.7.21.jar"/>
 	<classpathentry kind="lib" path="C:/Users/User/Dropbox/2017-2 UFU/SD/Eclipse project/jar/slf4j-simple-1.7.21.jar"/>
+	<classpathentry kind="lib" path="jar/catalyst-buffer-1.2.1.jar"/>
+	<classpathentry kind="lib" path="jar/catalyst-common-1.2.1.jar"/>
+	<classpathentry kind="lib" path="jar/catalyst-concurrent-1.2.1.jar"/>
+	<classpathentry kind="lib" path="jar/catalyst-serializer-1.2.1.jar"/>
+	<classpathentry kind="lib" path="jar/catalyst-transport-1.2.1.jar"/>
+	<classpathentry kind="lib" path="jar/copycat-client-1.2.8.jar"/>
+	<classpathentry kind="lib" path="jar/copycat-protocol-1.2.8.jar"/>
+	<classpathentry kind="lib" path="jar/slf4j-api-1.7.7.jar"/>
+	<classpathentry kind="lib" path="jar/copycat-server-1.2.8.jar"/>
+	<classpathentry kind="lib" path="jar/catalyst-netty-1.2.1.jar"/>
+	<classpathentry kind="lib" path="jar/netty-all-4.1.5.Final.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

@@ -18,7 +18,8 @@ struct Edge {
 struct NodeData {
 	1:i32 id,
 	2:string ip,
-	3:i32 port
+	3:i32 port,
+	4:i32 clusterId
 }
 
 service service_graph{
