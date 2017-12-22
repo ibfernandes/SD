@@ -2,7 +2,7 @@ package copycat_command;
 
 import io.atomix.copycat.Command;
 
-public class DeleteVertexCommand implements Command<Object>{
+public class DeleteVertexCommand implements Command<Boolean>{
 	private thrift.Vertex v;
 
     public DeleteVertexCommand(thrift.Vertex v){

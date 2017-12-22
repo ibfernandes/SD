@@ -15,7 +15,9 @@ import java.util.concurrent.CompletableFuture;
 
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransport;
+import org.apache.thrift.transport.TTransportException;
 
+import agriculturamachinebook.AgriculturaMachineBook;
 import copycat_command.AddEdgeCommand;
 import graph.Periodic;
 import graph.Service;
@@ -213,6 +215,7 @@ public class Main {
 				servers[s].handler.init_node(m, nodes[s]);
 				servers[s].handler.initFingerTable(fingerTableList);
 				servers[s].handler.initFingerCluster(fingerCluster);
+				servers[s].handler.initOwnCluster(nodesPorCluster[nodes[s].clusterId]);
 				
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -261,9 +264,6 @@ public class Main {
 				predecessor = nodes[s-1];
 			
 			servers[s].handler.initPredecessor(predecessor);
-
-			thread_servers[s] = new Thread(servers[s]);
-			thread_servers[s].start();
 		}
 		
 		//Inicia Raft server configurations
@@ -284,56 +284,71 @@ public class Main {
 			
 			for(int k=s*fatorReplicacao;k<(s*fatorReplicacao)+fatorReplicacao;k++) {
 				int aux = k;
-				Thread thread = new Thread(){
+				Thread thread = new Thread(new Runnable() {
 				    public void run(){
-				    if((aux%fatorReplicacao)==0)
-				    		servers[aux].handler.raft_server.bootstrap().join();
+				    	Server s = servers[aux];
+				    	
+				    	if((aux%fatorReplicacao)==0)
+				    		s.handler.raft_server.bootstrap().join();
 				    	else {
-				    		servers[aux].handler.raft_server.join(cluster).join();
+				    		s.handler.raft_server.join(cluster).join();
 				    	}
 				    }
-				  };
+				  });
 				thread.start();
 			}
 		}
 		
-		
-		
-		
+		for(int s=0;s<quantidadeServidores;s++) {
+			thread_servers[s] = new Thread(servers[s]);
+			thread_servers[s].start();
+		}
 		
 		
 		//Inicializa o cliente raft para testar os clusters
 		try {
-			Thread.sleep(10000);
+			Thread.sleep(9000);
 			System.out.println("Iniciando cliente...");
 		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		/*
-		CopycatClient.Builder builder = CopycatClient.builder();
-		builder.withTransport(NettyTransport.builder()
-				  .withThreads(2)
-				  .build());
-
-		CopycatClient client = builder.build();
-		Collection<Address> cluster = Arrays.asList(
-		  new Address(nodes[0].ip, nodes[0].port+clusterOffset)
-		);
-
-		CompletableFuture<CopycatClient> future = client.connect(cluster);
-		future.join();
-		CompletableFuture<Object> f = client.submit(new AddEdgeCommand(new thrift.Edge()));
-		Object result = f.join();*/
 		
 			
 		//Incializa o cliente thrift para testar os servidores
 		Client c = new Client();
 		c.init(nodes[0].ip, nodes[0].port, nodes[0].id);
-		c.CURRENT_STATE = c.USE_PRESET_2;
+		c.CURRENT_STATE = c.USE_REDE;
+		
 		
 		Thread cc = new Thread(c);
 		cc.start();
+		
+		try {
+			Thread.sleep(5000);
+		} catch (InterruptedException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		
+		//Confere se os dados foram replicados no segundo nodo do primeiro cluster
+		/*Client c2 = new Client();
+		c2.init(nodes[1].ip, nodes[1].port, nodes[1].id);
+		try {
+		c2.open();
+		c2.printVertices(c2.getService().getAllRingVertices());
+		c2.close();
+		}catch(Exception e) {
+			e.printStackTrace();
+		}*/
+		
+		try {
+			AgriculturaMachineBook a = new AgriculturaMachineBook(c);
+			a.RodaRede();
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		
 	  }
 }

@@ -2,7 +2,7 @@ package copycat_command;
 
 import io.atomix.copycat.Command;
 
-public class AddEdgeCommand implements Command<Object>{
+public class AddEdgeCommand implements Command<Boolean>{
 	private thrift.Edge e;
 
     public AddEdgeCommand(thrift.Edge e){

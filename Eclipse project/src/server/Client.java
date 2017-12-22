@@ -29,6 +29,7 @@ public class Client implements Runnable {
 	public static final int USE_PRESET_1 = 1;
 	public static final int USE_PRESET_2 = 2;
 	public static final int USE_RANDOM = 3;
+	public static final int USE_REDE = 4;
 	public static int CURRENT_STATE = SHOW_CONCURRENCY;
 	private String ip_server;
 	private int port_server;
@@ -202,14 +203,14 @@ public class Client implements Runnable {
   public void preSet_2() {
 	  try{
 		  getService().addVertex(0, 1, "nada", 1.5);
-		  getService().addVertex(1, 1, "nada", 1.5);
+		  /*getService().addVertex(1, 1, "nada", 1.5);
 		  getService().addVertex(2, 1, "nada", 1.5);
 		  getService().addVertex(3, 1, "nada", 1.5);
 		  getService().addVertex(4, 1, "nada", 1.5);
 		  getService().addVertex(5, 1, "nada", 1.5);
-		  getService().addVertex(6, 1, "nada", 1.5);
+		  getService().addVertex(6, 1, "nada", 1.5);*/
 		  
-		  getService().addEdge(0, 1, "nada", 1, 0);
+		 // getService().addEdge(0, 1, "nada", 1, 0);
 		  /*getService().addEdge(1, 2, "nada", 1, 0);
 		  getService().addEdge(2, 3, "nada", 1, 0);
 		  getService().addEdge(3, 5, "nada", 1, 0);
@@ -222,8 +223,8 @@ public class Client implements Runnable {
 		  getService().addEdge(4, 5, "nada", 1, 0);*/
 		  
 		 
-		 // printVertices(getService().getAllRingVertices());
-		  printEdges(getService().getAllRingEdges());
+		  printVertices(getService().getAllRingVertices());
+		 // printEdges(getService().getAllRingEdges());
 		 // getService().shortestPathBetweenVertices(1, 3);
 		 //printVertices(getService().getVertices());
 		  
@@ -232,7 +233,42 @@ public class Client implements Runnable {
 		  e.printStackTrace();
 	  }
   }
+  //id cor = senha, desc = nome, peso = tipo (1, pessoa, resto maq. agricula)
+  public void preSet_rede() {
+		 try {
+			 
+			 getService().addVertex(0, 123456, "Joao", 1.0);
+			 getService().addVertex(1, 123456, "Julio", 1.0);
+			 getService().addVertex(2, 123456, "Xtreme 22", 0.0);
+			 getService().addVertex(3, 123456, "Master suprema", 0.0);
+			 getService().addVertex(4, 123456, "Zeka", 1.0);
+			 getService().addVertex(5, 123456, "Mtk 0.2", 0.0);
+			 getService().addVertex(6, 123456, "Jujuba", 1.0);
+			 
+			 
+			 getService().addEdge(0, 1, "", 2, 0);
+			 getService().addEdge(4, 0, "", 2, 0);
+			 getService().addEdge(4, 1, "", 2, 0);
+			 getService().addEdge(6, 4, "", 2, 0);
+			 getService().addEdge(4, 6, "", 2, 0);
+			 getService().addEdge(4, 0, "", 2, 0);
+			 getService().addEdge(4, 1, "", 2, 0);
+			 getService().addEdge(1, 6, "", 2, 0);
+			 getService().addEdge(1, 4, "", 2, 0);
+			 
+			 
+			 
+			 getService().addEdge(0, 2, "", 2, 0);
+			 getService().addEdge(0, 3, "", 2, 0);
+			 getService().addEdge(0, 5, "", 2, 0);
+			 getService().addEdge(1, 5, "", 2, 0);
+			 getService().addEdge(6, 2, "", 2, 0);
 
+			 
+		} catch (TException e) {
+			e.printStackTrace();
+		}
+  	}
   
 	@SuppressWarnings("unused")
 	@Override
@@ -258,6 +294,15 @@ public class Client implements Runnable {
 					}
 					if(CURRENT_STATE==USE_PRESET_2){
 						preSet_2();
+						try {
+							//Thread.sleep(new Random().nextInt(1000));
+							Thread.sleep(2000000);
+						} catch (InterruptedException e) {
+							e.printStackTrace();
+						}
+					}
+					if(CURRENT_STATE==USE_REDE){
+						preSet_rede();
 						try {
 							//Thread.sleep(new Random().nextInt(1000));
 							Thread.sleep(2000000);

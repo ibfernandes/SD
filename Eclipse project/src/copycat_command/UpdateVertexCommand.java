@@ -2,7 +2,7 @@ package copycat_command;
 
 import io.atomix.copycat.Command;
 
-public class UpdateVertexCommand implements Command<Object>{
+public class UpdateVertexCommand implements Command<Boolean>{
 	private thrift.Vertex v;
 
     public UpdateVertexCommand(thrift.Vertex v){
